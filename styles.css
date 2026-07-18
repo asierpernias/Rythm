@@ -166,3 +166,43 @@ body {
     background: #ffd45d;
     box-shadow: 0 0 14px rgba(255, 212, 93, 0.8);
 }
+
+#records {
+    width:100%;
+    max-width: 240px;
+    margin-top: 4px;
+    text-align: left;
+}
+
+#records ol{
+    list-style: none;
+    counter-reset: rank;
+}
+
+#records li {
+    counter-increment: rank;
+    display:flex;
+    justify-content: space-between;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    font-size: 14px;
+}
+
+#records li:before {
+    content: counter(rank) '.';
+    color: #9a9ab0;
+    margin-right: 8px;
+}
+
+#records li.new-record {
+    background: rgba(74, 158, 255, 0.18);
+    border: 1px solid #4a9eff;
+}
+
+#records .no-records {
+    color: #9a9ab0;
+    font-size: 13px;
+    text-align: center;
+}

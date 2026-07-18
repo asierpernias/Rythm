@@ -25,10 +25,24 @@
             <h1>Fin del juego</h1>
             <div class="ests" id="final-score">0</div>
             <p id="detalles">Puntuacion</p>
+            <div id="records"></div>
             <button id="restart">Reintentar</button>
         </div>
     </div>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyC525HPlPXey5lu7luPOHsqOY4m9hOoHes",
+            authDomain: "rythm-30112.firebaseapp.com",
+            databaseURL: "https://rythm-30112-default-rtdb.firebaseio.com",
+            projectId: "rythm-30112",
+            storageBucket: "rythm-30112.firebasestorage.app",
+            messagingSenderId: "631218201405",
+            appId: "1:631218201405:web:c7bfc92c244b3b05499b54"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
         const contenedor = document.getElementById('contenedor');
         const lane = document.getElementById('lineadejuego');
         const scoreEl = document.getElementById('score');
@@ -64,6 +78,48 @@
         let score = 0;
         let combo = 0;
         let lives = 3; 
+        let lastScoreWasRecord = false;
+        async function getRecords() {
+            try {
+                const snapshot = await db.ref('onekey_records')
+                    .orderByValue()
+                    .limitToLast(5)
+                    .once('value');
+                const data = snapshot.val() || {};
+                return Object.values(data).sort((a, b) => b-a);
+            } catch (e) {
+                console.error('Error leyendo records', e);
+                return [];
+            }
+        }
+
+        async function saveRecord(puntuacion) {
+            try {
+                await db.ref('onekey_records').push(puntuacion);
+                const top5 = await getRecords();
+                lastScoreWasRecord = top5.length > 0 && top5[0] === puntuacion && puntuacion > 0;
+                return top5;
+            } catch (e) {
+                console.error('Error guardando record:', e);
+                return [];
+            }
+        }
+
+        function renderPuntuacion(records, destacada) {
+            const container = document.getElementById('records');
+            if (!records.length) {
+                container.innerHTML = '<p class="no-records">Aun no hay puntuaciones</p>';
+                return;
+            }
+             const items = records.map(r => {
+                const isHighlight = r === highlightScore;
+                return `<li class="${isHighlight ? 'new-record' : ''}">
+                    <span>${isHighlight ? '★ ' : ''}${r} pts</span>
+                </li>`;
+            }).join('');
+            container.innerHTML = `<ol>${items}</ol>`;
+        }
+
         let running = false;
         let notes = [];
         let spawnTimer = null;
@@ -267,12 +323,18 @@
             requestAnimationFrame(Loop);
         }
 
-        function endGame() {
+        async function  endGame() {
             running = false;
             clearTimeout(spawnTimer);
             document.getElementById('final-score').textContent = score;
-            document.getElementById('detalles').textContent = 'Puntuación final';
+            document.getElementById('detalles').textContent = 'Guardando...';
             perdidaPantalla.style.display = 'flex';
+
+            const top5 = await saveRecord(score);
+            document.getElementById('detalles').textContent = lastScoreWasRecord
+                ? 'Nuevo record'
+                : 'Puntuacion final';
+            renderRecords(top5, score);
         }
 
         document.getElementById('inicio').addEventListener('click', startGame);
