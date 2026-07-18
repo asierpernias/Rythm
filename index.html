@@ -1,5 +1,6 @@
 <html lang="es">
-<head rel="stylesheet" href="styles.css" >
+<head>
+    <link rel="stylesheet" href="styles.css">
     <meta charset="UTF-8">
     <title>ONE KEY - My rythm game</title>
 </head>
@@ -64,7 +65,7 @@
         let lives = 3; 
         let running = false;
         let notes = [];
-        let spawnTimer = setInterval(spawnNote, interval);
+        let spawnTimer = null;
         let bpm = 100;
         let beatConta = 0;
         
@@ -80,7 +81,7 @@
         function looseLife() {
             lives--;
             const dots = livesEl.children;
-            if (dots[3 -lives -1]) dots[3 - lives].classList.add('lost');
+            if (dots[lives]) dots[lives].classList.add('lost');
             if (lives <= 0) endGame();
         }
 

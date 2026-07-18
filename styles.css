@@ -4,9 +4,9 @@ body {
     background: #0a0a12;
     color: #fff;
     font-family: 'Segoe UI', Arial, sans-serif;
-    height: 160vh;
+    height: 100vh;
     display: flex;
-    align-items: center;
+    justify-content: center;
     overflow: hidden;
     user-select: none;
 }
@@ -87,12 +87,12 @@ body {
 #judgement {
     position: absolute;
     bottom: 130px;
-    left: 50;
+    left: 50%;
     transform: translateX(-50%);
     font-size:  22px;
     font-weight: bold;
     opacity: 0;
-    transition: opacity 0,1s, transform 0.15s;
+    transition: opacity 0.1s, transform 0.15s;
 }
 
 #pista_tecla{
@@ -110,7 +110,7 @@ body {
     font-size: 13px;
     letter-spacing: 2px;
     color:#4a9eff;
-    transition: transform 0.88s, background 0.08s;
+    transition: transform 0.08s, background 0.08s;
 }
 
 #pista_tecla.pressed {
@@ -154,5 +154,5 @@ body {
 .overlays button:hover { background: #6fb3ff;}
 
 #vidas {display: flex; gap: 4px;}
-.life {width: 1opx; height: 10px; border-radius: 50%; background: #ff5d8f;}
+.life {width: 1px; height: 10px; border-radius: 50%; background: #ff5d8f;}
 .life.lost {background: #2a2a3d;}
