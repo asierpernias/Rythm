@@ -156,3 +156,13 @@ body {
 #vidas {display: flex; gap: 4px;}
 .life {width: 1px; height: 10px; border-radius: 50%; background: #ff5d8f;}
 .life.lost {background: #2a2a3d;}
+
+.note.hold {
+    background: #4a9eff;
+    box-shadow: 0 0 12px rgba(74, 158, 255, 0.7);
+}
+
+.note.active {
+    background: #ffd45d;
+    box-shadow: 0 0 14px rgba(255, 212, 93, 0.8);
+}

@@ -44,6 +44,7 @@
         const TRAVEL_MS = 1400;
         const PERFECT_WINDOW = 45;
         const GOOD_WINDOW = 120;
+        const SPEED = (HIT_Y + 22) / TRAVEL_MS;
 
         let audioCtx = null;
 
@@ -87,19 +88,35 @@
 
         function spawnNote() {
             beatConta++;
+            const isHold = Math.random() < 0.3;
+            const holdms = isHold ? 400 + Math.random() * 500 : 0;
+            const height = 22 + holdms * SPEED;
+
             const el = document.createElement('div');
-            el.className = 'note';
-            el.style.top = '-22px';
+            el.className = isHold ? 'note hold' : 'note';
+            el.style.height = height + 'px';
+            el.style.top = -height + 'px';
             lane.appendChild(el);
+
             const targetTime = performance.now() + TRAVEL_MS;
-            notes.push({el, targetTime, judged: false});
+            notes.push({el, targetTime, isHold, holdms, height,
+                endTime: targetTime + holdms,
+                judged: false,
+                state: 'falling',
+            });
 
             if (bpm < 170 && beatConta % 8 === 0) bpm += 4;
         }
          
         function scheduler() {
-            const interval = 60000 /bpm;
-            spawnTimer = setInterval(spawnNote, interval);
+            if (!running) return;
+            const base = 60000 / bpm;
+            const jitter = base * 0.35;
+            const delay = base + (Math.random() * 2 -1) * jitter;
+            spawnTimer = setTimeout(() => {
+                spawnNote();
+                scheduler();
+            }, Math.max(250, delay));
         }
 
         function showJudgement(text, color) {
@@ -127,63 +144,109 @@
             }
         }
 
-        function golpear() {
+        function trypress() {
             keyHint.classList.add('pressed');
-            setTimeout(() => keyHint.classList.remove('pressed'), 90);
-
             if (!running) return;
 
             let closest = null, closestDiff = Infinity;
             for (const n of notes) {
-                if (n.judged) continue;
+                if (n.state !== 'falling') continue;
                 const diff = Math.abs(performance.now() - n.targetTime);
-                if (diff < closestDiff) {closestDiff = diff; closest = n}
+                if (diff < closestDiff) { closestDiff = diff; closest = n; }
             }
 
             if (closest && closestDiff <= GOOD_WINDOW) {
-                closest.judged = true;
-                closest.el.remove();
-                notes = notes.filter(n => n !== closest);
-                if (closestDiff <= PERFECT_WINDOW) {
-                    score += 100;
-                    combo++;
-                    showJudgement ('PERFECT', '#4a9eff');
-                    beep(880, 0.08, 0.15);
+                if (closest.isHold) {
+                    closest.state = 'holding';
+                    closest.el.classList.add('active');
+                    const perfect = closestDiff <= PERFECT_WINDOW;
+                    showJudgement(perfect ? 'PERFECT':'GOOD', perfect ? '#4a9eff' : '#ffd45d');
+                    beep(perfect ? 880 : 660, 0.08, 0.12);
                 } else {
-                    score += 50;
-                    combo++;
-                    showJudgement ('GOOD', '#ffd45d');
-                    beep(660, 0.08, 0.12);
+                    closest.judged = true;
+                    closest.state = 'done';
+                    closest.el.remove();
+
+                    if (closestDiff <= PERFECT_WINDOW) {
+                        score += 100; combo++;
+                        showJudgement('PERFECT', '#4a9eff');
+                        beep(880, 0.08, 0.15);
+                    } else {
+                        score += 50; combo++;
+                        showJudgement("GOOD", "#ff45d");
+                        beep(660, 0.08, 0.12);
+                    }
+                    flashCOmbo();
+                    scoreEl.textContent = score;
                 }
-                flashCOmbo();
-                scoreEl.textContent = score;
             } else {
                 combo = 0;
-                showJudgement ('FALLO', '#ff5d8f');
+                showJudgement('FALLO', "#ff5d8f");
                 flashCOmbo();
                 beep(180, 0.15, 0.15);
             }
+        }
+
+        function attemtRelease() {
+            keyHint.classList.remove('pressed');
+            if (!running) return;
+
+            const held = notes.find(n => n.state === "holding");
+            if (!held) return;
+
+            const diff = Math.abs(performance.now() - held.endTime);
+            held.state = 'done';
+            held.judged = true;
+            held.el.remove();
+
+            if (diff <= GOOD_WINDOW) {
+                score += 150; combo++;
+                showJudgement('PERFECT HOLD', "#4a9eff");
+                beep(990, 0.1, 0.15);
+            } else {
+                combo = 0;
+                showJudgement('SOLTASTE ANTES', '#ff5d8f');
+                beep(180, 0.15, 0.15);
+            }
+
+            flashCOmbo();
+            scoreEl.textContent = score;
         }
 
         function Loop() {
             if (!running) return;
             const now = performance.now();
             for (const n of notes) {
-                if (n.judged) continue;
-                const timeLeft = n.targetTime -now;
-                const progress = 1 - (timeLeft / TRAVEL_MS);
-                const y = progress * (HIT_Y + 22) - 22;
-                n.el.style.top = y + 'px';
+                if (n.state === 'done') continue;
+                    if (n.state === 'falling') {    
+                        const timeLeft = n.targetTime -now;
+                        const progress = 1 - (timeLeft / TRAVEL_MS);
+                        const y = progress * (HIT_Y + 22) - n.height;
+                        n.el.style.top = y + 'px';
 
-                if (timeLeft < -GOOD_WINDOW) {
-                    n.judged = true;
-                    n.el.remove();
-                    combo = 0;
-                    looseLife();
-                    showJudgement('FALLO', '#ff5d8f');
-                    flashCOmbo();
+                        if (timeLeft < -GOOD_WINDOW) {
+                            n.state = 'done';
+                            n.judged = true;
+                            n.el.remove();
+                            combo = 0;
+                            looseLife();
+                            showJudgement('FALLO', '#ff5d8f');
+                            flashCOmbo();
+                        }
+                    } else if (n.state === 'holding') {
+                        n.el.style.top = (HIT_Y + 22 - n.height) + 'px';
+
+                        if (now > n.endTime + GOOD_WINDOW) {
+                            n.state = 'done';
+                            n.judged = true;
+                            n.el.remove();
+                            score += 150; combo++;
+                            showJudgement('PERFECT HOLD', "#4a9eff");
+                            flashCOmbo();
+                            scoreEl.textContent = score;
+                        }
+                    }
                 }
-             }
 
              notes = notes.filter(n => !n.judged);
              requestAnimationFrame(Loop);
@@ -199,14 +262,14 @@
             startPantalla.style.display = 'none';
             perdidaPantalla.style.display = 'none';
             running = true;
-            clearInterval(spawnTimer);
+            clearTimeout(spawnTimer);
             scheduler();
             requestAnimationFrame(Loop);
         }
 
         function endGame() {
             running = false;
-            clearInterval(spawnTimer);
+            clearTimeout(spawnTimer);
             document.getElementById('final-score').textContent = score;
             document.getElementById('detalles').textContent = 'Puntuación final';
             perdidaPantalla.style.display = 'flex';
@@ -216,13 +279,21 @@
         document.getElementById('restart').addEventListener('click', startGame);
 
         window.addEventListener('keydown', (e) => {
-        if (e.code === 'Space') {
+        if (e.code === 'Space' && !e.repeat) {
             e.preventDefault();
-            golpear();
+            trypress();
         }
         });
-        contenedor.addEventListener('touchstart', (e) => { e.preventDefault(); golpear(); }, { passive: false });
-        contenedor.addEventListener('mousedown', golpear);
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                attemtRelease();
+            }
+        })
+        contenedor.addEventListener('touchstart', (e) => { e.preventDefault(); trypress(); }, { passive: false });
+        contenedor.addEventListener('touchend', (e) => {e.preventDefault(); attemtRelease(); }, {passive:false});
+        contenedor.addEventListener('mousedown', trypress);
+        contenedor.addEventListener('mouseup', attemtRelease);
 
     </script>
 </body>
