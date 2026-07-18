@@ -7,6 +7,7 @@ body {
     height: 100vh;
     display: flex;
     justify-content: center;
+    align-items: center;
     overflow: hidden;
     user-select: none;
 }
@@ -154,7 +155,7 @@ body {
 .overlays button:hover { background: #6fb3ff;}
 
 #vidas {display: flex; gap: 4px;}
-.life {width: 1px; height: 10px; border-radius: 50%; background: #ff5d8f;}
+.life {width: 10px; height: 10px; border-radius: 50%; background: #ff5d8f;}
 .life.lost {background: #2a2a3d;}
 
 .note.hold {
