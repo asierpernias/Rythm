@@ -25,6 +25,11 @@
             <h1>Fin del juego</h1>
             <div class="ests" id="final-score">0</div>
             <p id="detalles">Puntuacion</p>
+            <div id="name-entry" style="display: none;">
+                <div id="name-display">_</div>
+                <div id="letter-strip"></div>
+                <p class="hint">ESPACIO para elegir la letra</p>
+            </div>
             <div id="records"></div>
             <button id="restart">Reintentar</button>
         </div>
@@ -79,42 +84,123 @@
         let combo = 0;
         let lives = 3; 
         let lastScoreWasRecord = false;
-        async function getRecords() {
+        let enteringName = false;
+        let nameBuffer = '';
+        let sessionPlayerName = null;
+        let letterIndex = 0;
+        let letterTiempo = null;
+
+        const LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','␣','⌫','✓'];
+        const LETRAS_MAXIMAS = 6;
+
+        function sanitaizeName(name) {
+            return name.replace(/[.#$\[\]\/]/g, '').trim().slice(0, LETRAS_MAXIMAS);
+        }
+
+        function ConstruirCadena() {
+            const strip = document.getElementById('letter-strip');
+            strip.innerHTML = LETTERS.map((l, i) => `<span class="letter" data-i="${i}">${l}</span>`).join('');
+        }
+
+        function highlightLetter() {
+            document.querySelectorAll('#letter-strip .letter').forEach(el => el.classList.remove('active'));
+            const el = document.querySelector(`#letter-strip .letter[data-i="${letterIndex}"]`);
+            if (el) el.classList.add('active');
+        }
+
+        function startLetterCycle() {
+            letterIndex = 0;
+            highlightLetter();
+            letterTiempo = setInterval(() => {
+                letterIndex = (letterIndex + 1) % LETTERS.length;
+                highlightLetter();
+            }, 350);
+        }
+
+        function pararCiclo() {
+            clearInterval(letterTiempo)
+        }
+
+        function actualizarNombre() {
+            const display = document.getElementById('name-display');
+            display.textContent = nameBuffer.length ? nameBuffer : '_';
+        }
+
+        function elegirLetra() {
+            const letter = LETTERS[letterIndex];
+            if (letter === '✓') {
+                confirmar();
+            } else if (letter === '⌫') {
+                nameBuffer = nameBuffer.slice(0, -1);
+                actualizarNombre();
+            } else if (letter === '␣') {
+                if (nameBuffer.length < LETRAS_MAXIMAS) nameBuffer += ' ';
+                actualizarNombre();
+            } else {
+                if (nameBuffer.length < LETRAS_MAXIMAS) nameBuffer += letter;
+                actualizarNombre();
+            }
+        }
+
+        async function confirmar() {
+            const clean = sanitaizeName(nameBuffer);
+            if (!clean) return;
+            pararCiclo();
+            enteringName = false;
+            document.getElementById('name-entry').style.display = 'none';
+            sessionPlayerName = clean;
+            document.getElementById('detalles').textContent = 'Guardando...';
+            await submitScore(sessionPlayerName, score);
+        }
+
+         async function submitScore(name, finalScore) {
             try {
-                const snapshot = await db.ref('onekey_records')
+                const ref = db.ref('onekey_players/' + name);
+                const snap = await ref.once('value');
+                const existing = snap.val();
+                let isNewRecord = false;
+                if (existing === null || finalScore > existing) {
+                    await ref.set(finalScore);
+                    isNewRecord = true;
+                }
+                document.getElementById('detalles').textContent = isNewRecord
+                    ? '¡Nuevo récord para ' + name + '!'
+                    : name + ', tu mejor puntuación sigue siendo ' + existing;
+                const top5 = await getRecords();
+                renderRecords(top5, name);
+            } catch (e) {
+                console.error('Error guardando puntuación:', e);
+                document.getElementById('detalles').textContent = 'Error guardando puntuación';
+            }
+        }
+
+               async function getRecords() {
+            try {
+                const snapshot = await db.ref('onekey_players')
                     .orderByValue()
                     .limitToLast(5)
                     .once('value');
                 const data = snapshot.val() || {};
-                return Object.values(data).sort((a, b) => b-a);
+                return Object.entries(data)
+                    .map(([name, score]) => ({ name, score }))
+                    .sort((a, b) => b.score - a.score);
             } catch (e) {
-                console.error('Error leyendo records', e);
+                console.error('Error leyendo records:', e);
                 return [];
             }
         }
 
-        async function saveRecord(puntuacion) {
-            try {
-                await db.ref('onekey_records').push(puntuacion);
-                const top5 = await getRecords();
-                lastScoreWasRecord = top5.length > 0 && top5[0] === puntuacion && puntuacion > 0;
-                return top5;
-            } catch (e) {
-                console.error('Error guardando record:', e);
-                return [];
-            }
-        }
-
-           function renderRecords(records, destacada) {
+        function renderRecords(records, highlightName) {
             const container = document.getElementById('records');
             if (!records.length) {
-                container.innerHTML = '<p class="no-records">Aun no hay puntuaciones</p>';
+                container.innerHTML = '<p class="no-records">Aún no hay puntuaciones</p>';
                 return;
             }
             const items = records.map(r => {
-                const isHighlight = r === destacada;
+                const isHighlight = r.name === highlightName;
                 return `<li class="${isHighlight ? 'new-record' : ''}">
-                    <span>${isHighlight ? '★ ' : ''}${r} pts</span>
+                    <span>${isHighlight ? '★ ' : ''}${r.name}</span>
+                    <span>${r.score} pts</span>
                 </li>`;
             }).join('');
             container.innerHTML = `<ol>${items}</ol>`;
@@ -170,7 +256,10 @@
             const jitter = base * 0.35;
             const delay = base + (Math.random() * 2 -1) * jitter;
             spawnTimer = setTimeout(() => {
-                spawnNote();
+                const hayNotaActiva = notes.some(n => n.state === 'falling' || n.state === 'holding');
+                if (!hayNotaActiva) {
+                    spawnNote();
+                }    
                 scheduler();
             }, Math.max(250, delay));
         }
@@ -290,7 +379,10 @@
                             flashCOmbo();
                         }
                     } else if (n.state === 'holding') {
-                        n.el.style.top = (HIT_Y + 22 - n.height) + 'px';
+                        const holdProgress = Math.min(1, (now - n.targetTime) / n.holdms);
+                        const currentHeight = Math.max(6, n.height * (1 - holdProgress));
+                        n.el.style.height = currentHeight + 'px';
+                        n.el.style.top = (HIT_Y + 22 - currentHeight) + 'px';
 
                         if (now > n.endTime + GOOD_WINDOW) {
                             n.state = 'done';
@@ -317,6 +409,9 @@
             initLives();
             startPantalla.style.display = 'none';
             perdidaPantalla.style.display = 'none';
+            enteringName = false;
+            pararCiclo();
+            document.getElementById('name-entry').style.display = 'none';
             running = true;
             clearTimeout(spawnTimer);
             scheduler();
@@ -327,36 +422,55 @@
             running = false;
             clearTimeout(spawnTimer);
             document.getElementById('final-score').textContent = score;
-            document.getElementById('detalles').textContent = 'Guardando...';
             perdidaPantalla.style.display = 'flex';
 
-            const top5 = await saveRecord(score);
-            document.getElementById('detalles').textContent = lastScoreWasRecord
-                ? 'Nuevo record'
-                : 'Puntuacion final';
-            renderRecords(top5, score);
+            if (sessionPlayerName) {
+                document.getElementById('detalles').textContent = 'Guardando...';
+                await submitScore(sessionPlayerName, score)
+            } else {
+                document.getElementById('detalles').textContent = 'Guardando...';
+                enteringName = true;
+                nameBuffer = '';
+                actualizarNombre();
+                document.getElementById('name-entry').style.display = 'block';
+                ConstruirCadena();
+                startLetterCycle();
+            }
         }
 
         document.getElementById('inicio').addEventListener('click', startGame);
         document.getElementById('restart').addEventListener('click', startGame);
 
         window.addEventListener('keydown', (e) => {
-        if (e.code === 'Space' && !e.repeat) {
-            e.preventDefault();
-            trypress();
-        }
+            if (e.code === 'Space' && !e.repeat) {
+                e.preventDefault();
+                if (enteringName) {
+                    elegirLetra();
+                } else {
+                    trypress();
+                }
+            }
         });
         window.addEventListener('keyup', (e) => {
             if (e.code === 'Space') {
                 e.preventDefault();
-                attemtRelease();
+                if (!enteringName) attemtRelease();
             }
-        })
-        contenedor.addEventListener('touchstart', (e) => { e.preventDefault(); trypress(); }, { passive: false });
-        contenedor.addEventListener('touchend', (e) => {e.preventDefault(); attemtRelease(); }, {passive:false});
-        contenedor.addEventListener('mousedown', trypress);
-        contenedor.addEventListener('mouseup', attemtRelease);
-
+        });
+        contenedor.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (enteringName) { elegirLetra(); } else { trypress(); }
+        }, { passive: false });
+        contenedor.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (!enteringName) attemtRelease();
+        }, { passive: false });
+        contenedor.addEventListener('mousedown', () => {
+            if (enteringName) { elegirLetra(); } else { trypress(); }
+        });
+        contenedor.addEventListener('mouseup', () => {
+            if (!enteringName) attemtRelease();
+        });
     </script>
 </body>
 </html>
