@@ -105,14 +105,14 @@
             }
         }
 
-        function renderPuntuacion(records, destacada) {
+           function renderRecords(records, destacada) {
             const container = document.getElementById('records');
             if (!records.length) {
                 container.innerHTML = '<p class="no-records">Aun no hay puntuaciones</p>';
                 return;
             }
-             const items = records.map(r => {
-                const isHighlight = r === highlightScore;
+            const items = records.map(r => {
+                const isHighlight = r === destacada;
                 return `<li class="${isHighlight ? 'new-record' : ''}">
                     <span>${isHighlight ? '★ ' : ''}${r} pts</span>
                 </li>`;
