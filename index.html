@@ -1,0 +1,32 @@
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>ONE KEY - My rythm game</title>
+    <style></style>
+</head>
+<body>
+    <div id="contenedor">
+        <div id="lineadejuego"></div>
+        <div id="zonadisparo"></div>
+        <div id="hud">
+            <div id="vidas"></div>
+            <div id="score">0</div>
+        </div>
+        <div id="combos"></div>
+        <div id="judgement"></div>
+        <div id="pista_tecla">ESPACIO</div>
+        <div class="overlays" id="pantalla-inicio">
+            <h1>ONE KEY</h1>
+            <p>Presiona <b>ESPACIO</b> (o toca la pantalla) cuando el bloque cruce la linea azul</p>
+            <button id="inicio">Jugar</button>
+        </div>
+
+        <div class="overlays" id="gameover-pantalla" style="display:none">
+            <h1>Fin del juego</h1>
+            <div class="ests" id="final-score">0</div>
+            <p id="detalles">Puntuacion</p>
+            <button id="restart">Reintentar</button>
+        </div>
+    </div>
+</body>
+</html>
