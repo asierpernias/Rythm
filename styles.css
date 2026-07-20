@@ -10,6 +10,39 @@ body {
     overflow: hidden;
     user-select: none;
 }
+#contenedor::before{
+
+    content:"";
+    position:absolute;
+    inset:0;
+
+    background:
+
+        repeating-linear-gradient(
+            90deg,
+            transparent 0 38px,
+            rgba(74,158,255,.08) 39px,
+            transparent 40px
+        ),
+
+        repeating-linear-gradient(
+            transparent 0 38px,
+            rgba(74,158,255,.08) 39px,
+            transparent 40px
+        );
+
+    opacity:.35;
+
+    transform:
+        perspective(900px)
+        rotateX(70deg)
+        translateY(-250px)
+        scale(2);
+
+    animation:bgGrid 10s linear infinite;
+
+    pointer-events:none;
+}
 
 #contenedor {
     position: relative;
@@ -20,19 +53,72 @@ body {
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 0 35px rgba(80, 120, 255, 0.15);
+    perspective: 900px;
+    perspective-origin: 50% 5%;
+}
+
+#lineadejuego::before{
+    content:'';
+    position: absolute;
+    inset: 0;
+
+    background: 
+        repeating-linear-gradient(
+            to bottom,
+            rgba(74,158,255,.2) 0px,
+            rgba(74,158,255,.2) 1px,
+            transparent 1px,
+            transparent 42px
+        ),
+        repeating-linear-gradient(
+            to right,
+            rgba(74,158,255,.12) 0px,
+            rgba(74,158,255,.12) 1px,
+            transparent 1px,
+            transparent 24px           
+        );
+
+    opacity: .65;
+    background-size: 24px 42px;
+    animation: gridMove 1.4s linear infinite;
 }
 
 #lineadejuego {
     position: absolute;
     left: 50%;
-    top: 0;
-    transform: translateX(-50%);
-    width: 140px;
-    height: 100%;
-    background: rgba(255,255,255,0.03);
+    top: -120px;
+    bottom: 0;
+    transform: translateX(-50%) rotateX(52deg);
+    transform-style: preserve-3d;
+    transform-origin: center bottom;
+    will-change: transform;
+    width: 170px;
+    height: calc(100% + 160px);
+    background: 
+        linear-gradient(
+            to bottom,
+            #1f2234 0%,
+            #181b2c 35%,
+            #111521 70%,
+            #090b12 100%,
+        );
     border-left:1px solid #2a2a3d;
-    border-right: 1px solid #2a2a3d;
-    transition: border-color 0.3s, box-shadow 0.3s;
+    border-right: 1px solid #2a2a3d; 
+    box-shadow: inset 0 0 50px rgba(74, 158, 255, 0.8),
+        0 0 25px rgba(74, 158, 255, .20);
+    overflow: hidden;
+}
+
+#lineadejuego::after{
+    content:'';
+    position: absolute;
+    left:0;
+    right: 0;
+    top: -160px;
+    height: 160px;
+    background: inherit;
+    transform-origin: bottom;
+    transform: translateZ(-1px);
 }
 
 #zonadisparo {
@@ -40,22 +126,73 @@ body {
     bottom: 90px;
     left: 50%;
     transform: translateX(-50%);
-    width: 140px;
+    width: 170px;
     height: 14px;
     border-top: 2px solid #4a9eff;
     border-bottom: 2px solid #4a9eff;
-    background: rgba(74, 158, 255, 0.12);
+    background: 
+        linear-gradient(
+            to bottom,
+            rgba(74, 158, 255,.35),
+            rgba(74,158,255,0.5)
+        );
+    box-shadow: 
+        0 0 18px #4a9eff,
+        inset 0 0 12px rgba(74,158,255,.4);
+}
+
+.note::before{
+    content:'';
+    position: absolute;
+    left:5px;
+    right:5px;
+    top:2px;
+    height:5px;
+    border-radius: 6px;
+    background: rgba(255,255,255,.45);
+    box-shadow: 0 0 8px rgba(255,245,255,.7);
 }
 
 .note {
     position:absolute;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-50%) rotateX(-52deg) translateZ(12px);
+    transform-style: preserve-3d;
+    width:92px;
+    height: 22px;
+    border-radius: 8px;
+    backface-visibility: hidden;
+    will-change: transform, height, top;
     width: 90px;
     height: 22px;
     border-radius: 6px;
-    background: #ff5d8f;
-    box-shadow: 0 0 12px rgba(255, 93, 143, 0.7);
+    background:
+        linear-gradient(
+            to bottom,
+            #ff92b5,
+            #ff5df8 45%,
+            #d33f6d 100%
+        );
+    border: 1px solid #ddb4cb;
+    box-shadow:
+        0 8px 16px rgba(0, 0, 0, 0.45),
+        0 0 18px rgba(255,93,143,.65),
+        inset 0 2px 3px rgba(255, 255, 255,.45);
+    overflow: visible;
+}
+
+.note::after{
+    content:'';
+    position: absolute;
+    left:0;
+    right:0;
+    bottom: -8px;
+    height: 8px;
+    background: #97264f;
+    transform-origin: top;
+    transform: rotateX(-90deg);
+    box-shadow: inset 0 -2px 3px rgba(0,0,0,.4);
+    opacity: .75;
 }
 
 #hud {
@@ -319,4 +456,31 @@ body {
     transform: translate(-50%, -50%) scale(1);
     opacity: 0;
     pointer-events: none;
+}
+
+@keyframes gridMove{
+    from{
+        background-position: 0 0, 0 0;
+    }
+
+    to{
+        background-position: 0 42px, 0 0;
+    }
+}
+
+@keyframes bgGrid{
+    from{
+        transform: 
+            perspective(900px)
+            rotateX(70deg)
+            translateY(-250px)
+            scale(2);
+    }
+    to{
+        transform:
+            perspective(900px)
+            rotateX(70deg)
+            translateY(-150px)
+            scale(2);
+    }
 }

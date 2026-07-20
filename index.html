@@ -68,9 +68,14 @@
         const LANE_HEIGHT = contenedor.clientHeight;
         const HIT_Y = LANE_HEIGHT - 90;
         let TRAVEL_MS = 1400;
+        lane.style.transformOrigin = `50% ${((HIT_Y + 22) / LANE_HEIGHT * 100).toFixed(1)}%`;
         let PERFECT_WINDOW = 45;
         let GOOD_WINDOW = 120;
-        const SPEED = (HIT_Y + 22) / TRAVEL_MS;
+        let SPEED;
+        const START_OFFSET = 120;
+        const HIT_CENTER = HIT_Y + 7;
+        const TRAVEL_DISTANCE = HIT_CENTER +START_OFFSET;
+        SPEED = TRAVEL_DISTANCE / TRAVEL_MS;
 
         let audioCtx = null;
         let beatClockTimer = null;
@@ -313,6 +318,7 @@
         let spawnTimer = null;
         let bpm = 100;
         let beatConta = 0;
+        let lasNoteHeight = 22
 
         function initLives() {
             livesEl.innerHTML = '';
@@ -354,6 +360,8 @@
             el.style.top = -height + 'px';
             lane.appendChild(el);
 
+            lasNoteHeight = height;
+
             const targetTime = performance.now() + TRAVEL_MS;
             notes.push({
                 el, targetTime, isHold, holdms, height,
@@ -372,6 +380,7 @@
             if (!running) return;
             const base = 60000 / bpm;
             const jitter = base * 0.25;
+            const minGap = (lasNoteHeight / SPEED) + 90;
             const delay = base + (Math.random() * 2 - 1) * jitter;
             spawnTimer = setTimeout(() => {
                 const hayHoldActivo = notes.some(n => n.state === 'holding');
@@ -379,7 +388,7 @@
                     spawnNote();
                 }
                 scheduler();
-            }, Math.max(120, delay));
+            }, Math.max(120, minGap, delay));
         }
 
         function showJudgement(text, color) {
@@ -420,6 +429,7 @@
             else if (mult >= 4) color = '#ffd45d';
             lane.style.borderLeftColor = color;
             lane.style.borderRightColor = color;
+            lane.style.filter = `brightness(${1 + combo * 0.01})`;
             lane.style.boxShadow = mult > 1 ? `inset 0 0 40px ${color}55` : 'none';
         }
 
@@ -541,7 +551,7 @@
                 if (n.state === 'falling') {
                     const timeLeft = n.targetTime - now;
                     const progress = 1 - (timeLeft / TRAVEL_MS);
-                    const y = progress * (HIT_Y + 22) - n.height;
+                    const y =-START_OFFSET + progress * TRAVEL_DISTANCE - n.height;
                     n.el.style.top = y + 'px';
 
                     if (timeLeft < -GOOD_WINDOW) {
@@ -606,6 +616,8 @@
             PERFECT_WINDOW = currentDifficulty.perfect;
             GOOD_WINDOW = currentDifficulty.good;
             TRAVEL_MS = currentDifficulty.travelMs;
+            SPEED = TRAVEL_DISTANCE / TRAVEL_MS;
+            lasNoteHeight = 22;
             beatConta = 0;
             notes.forEach(n => n.el.remove());
             notes = [];
