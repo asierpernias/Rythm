@@ -421,6 +421,7 @@
 
         function flashCombo() {
             if (combo > 1) {
+                const mult = getMultiplicador();
                 combosEl.textContent = combo + ' combo' + (mult > 1 ? ' ×' + mult : '');
                 combosEl.style.animation = 'none';
                 void combosEl.offsetWidth;
@@ -676,11 +677,18 @@
 
         function handlePress() {
             if (gameState === 'menu') {
-                confirmDificultad();
+                difficultIndex = difficultyCursor;
+                currentDifficulty = DIFFICULTIES[difficultIndex];
+                stopDifficultyCycle();
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                gameState = 'countdown';
+                startCountdown();
             } else if (gameState === 'naming') {
                 elegirLetra();
             } else if (gameState === 'results') {
-                startGame();
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                gameState = 'countdown';
+                startCountdown();
             } else if (gameState === 'playing') {
                 trypress();
             }
@@ -714,14 +722,14 @@
         buildDifficultyStrip();
         startDifficultyCycle();
 
-        function playCountdown(n) {
+        function playCountdownBeep(n) {
             if (!audioCtx) return;
             const freq = n === 1 ? 1046 : 523;
             const dur = n === 1 ? 0.35 : 0.18;
             beep(freq, dur, n === 1 ? 0.22 : 0.15);
         }
 
-        function startCountdowna() {
+        function startCountdown() {
             const el = document.getElementById('countdown');
             let n = 3;
             function tick() {
