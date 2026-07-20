@@ -1,5 +1,4 @@
-# Rythmy
-![](https://hackatime.hackclub.com/api/v1/badge/U09F98XRE1G/asierpernias/Rythm)
+# Rythmy ![](https://hackatime.hackclub.com/api/v1/badge/U09F98XRE1G/asierpernias/Rythm)
 a one key web rythm game
 
 ## How to play?
