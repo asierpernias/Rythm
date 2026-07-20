@@ -6,9 +6,11 @@
 </head>
 <body>
     <div id="contenedor">
-        <div id="lineadejuego"></div>
-        <div id="zonadisparo">
-            <div id="timing-ring"></div>
+        <div id="lineadejuego">
+            <div id="lane-grid"></div>
+            <div id="zonadisparo">
+                <div id="timing-ring"></div>
+            </div>
         </div>
         <div id="hud">
             <div id="vidas"></div>
@@ -67,8 +69,10 @@
 
         const LANE_HEIGHT = contenedor.clientHeight;
         const HIT_Y = LANE_HEIGHT - 90;
+        const LANE_TOP_OFFSET = 120;
+        const pivotLocalY = HIT_Y + 22 + LANE_TOP_OFFSET;
         let TRAVEL_MS = 1400;
-        lane.style.transformOrigin = `50% ${((HIT_Y + 22) / LANE_HEIGHT * 100).toFixed(1)}%`;
+        lane.style.transformOrigin = `50% ${pivotLocalY}px`;
         let PERFECT_WINDOW = 45;
         let GOOD_WINDOW = 120;
         let SPEED;
@@ -330,6 +334,7 @@
         }
 
         function looseLife() {
+            if (gameState !== 'playing') return;
             lives--;
             const dots = livesEl.children;
             if (dots[lives]) dots[lives].classList.add('lost');
@@ -533,8 +538,10 @@
                 beep(990, 0.1, 0.15);
             } else {
                 combo = 0;
+                looseLife();
                 showJudgement('SOLTASTE ANTES', '#ff5d8f');
                 beep(180, 0.15, 0.15);
+                screenShake();
             }
 
             flashCombo();
@@ -575,12 +582,11 @@
                         n.state = 'done';
                         n.judged = true;
                         n.el.remove();
-                        combo++;
-                        score += 150 * getMultiplicador();
-                        showJudgement('PERFECT HOLD', '#4a9eff');
+                        combo = 0;
+                        showJudgement('FALLO', '#4a9eff');
                         flashCombo();
                         updateLane();
-                        scoreEl.textContent = score;
+                        screenShake();
                     }
                 }
             }
@@ -612,6 +618,8 @@
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             score = 0; combo = 0; lives = 3;
             updateLane();
+            const zonaDisparoEL = document.getElementById('zonadisparo');
+            zonaDisparoEL.style.top = (HIT_CENTER - 7) + 'px';
             bpm = currentDifficulty.bpmStart;
             PERFECT_WINDOW = currentDifficulty.perfect;
             GOOD_WINDOW = currentDifficulty.good;
