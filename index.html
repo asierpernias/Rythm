@@ -40,7 +40,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script>
-        // ---------- FIREBASE ----------
+        
         const firebaseConfig = {
             apiKey: "AIzaSyC525HPlPXey5lu7luPOHsqOY4m9hOoHes",
             authDomain: "rythm-30112.firebaseapp.com",
@@ -53,7 +53,7 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // ---------- REFERENCIAS DOM ----------
+
         const contenedor = document.getElementById('contenedor');
         const lane = document.getElementById('lineadejuego');
         const scoreEl = document.getElementById('score');
@@ -64,15 +64,14 @@
         const startPantalla = document.getElementById('pantalla-inicio');
         const perdidaPantalla = document.getElementById('gameover-pantalla');
 
-        // ---------- CONSTANTES DE LAYOUT ----------
+        
         const LANE_HEIGHT = contenedor.clientHeight;
         const HIT_Y = LANE_HEIGHT - 90;
-        const TRAVEL_MS = 1400;
+        let TRAVEL_MS = 1400;
         let PERFECT_WINDOW = 45;
         let GOOD_WINDOW = 120;
         const SPEED = (HIT_Y + 22) / TRAVEL_MS;
 
-        // ---------- AUDIO ----------
         let audioCtx = null;
         let beatClockTimer = null;
         let beatClockCount = 0;
@@ -141,17 +140,16 @@
             clearTimeout(beatClockTimer);
         }
 
-        // ---------- ESTADO GENERAL ----------
         let score = 0;
         let combo = 0;
         let lives = 3;
-        let gameState = 'menu'; // 'menu' | 'playing' | 'naming' | 'results'
+        let gameState = 'menu'; 
 
-        // ---------- DIFICULTAD ----------
+
         const DIFFICULTIES = [
-            { name: 'FACIL',   bpmStart: 80,  bpmMax: 130, perfect: 60, good: 160, holdChance: 0.2 },
-            { name: 'NORMAL',  bpmStart: 105, bpmMax: 170, perfect: 45, good: 120, holdChance: 0.35 },
-            { name: 'DIFICIL', bpmStart: 130, bpmMax: 200, perfect: 30, good: 90,  holdChance: 0.4 }
+            { name: 'FACIL',   bpmStart: 100,  bpmMax: 200, perfect: 60, good: 160, holdChance: 0.2, travelMs: 1500 },
+            { name: 'NORMAL',  bpmStart: 125, bpmMax: 225, perfect: 45, good: 120, holdChance: 0.35, travelMs: 1200 },
+            { name: 'DIFICIL', bpmStart: 150, bpmMax: 150, perfect: 30, good: 90,  holdChance: 0.4, travelMs: 900}
         ];
         let difficultIndex = 1;
         let currentDifficulty = DIFFICULTIES[difficultIndex];
@@ -362,7 +360,7 @@
         function scheduler() {
             if (!running) return;
             const base = 60000 / bpm;
-            const jitter = base * 0.35;
+            const jitter = base * 0.25;
             const delay = base + (Math.random() * 2 - 1) * jitter;
             spawnTimer = setTimeout(() => {
                 const hayNotaActiva = notes.some(n => n.state === 'falling' || n.state === 'holding');
@@ -370,7 +368,7 @@
                     spawnNote();
                 }
                 scheduler();
-            }, Math.max(250, delay));
+            }, Math.max(120, delay));
         }
 
         function showJudgement(text, color) {
@@ -399,16 +397,24 @@
         }
 
         function spawnParticulas(color) {
-            for (let i = 0; i < 10; i++) {
+            const count = 22;
+            for (let i = 0; i < count; i++) {
                 const p = document.createElement('div');
                 p.className = 'particle';
                 const angle = Math.random() * Math.PI * 2;
-                const dist = 20 + Math.random() * 30;
+                const dist = 30 + Math.random() * 90;
+                const size = 3 + Math.random() * 9;
+                const dur = 0.4 + Math.random() * 0.5;
+                const spin = (Math.random() * 720 - 360) + 'deg';
                 p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+                p.style.setProperty('--spin', spin)
                 p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
-                p.style.left = '210px';
+                p.style.width = size + 'px';
+                p.style.height = size + 'px';
+                p.style.left = (220 + Math.random() * 20) + 'px';
                 p.style.top = (HIT_Y + 22) + 'px';
                 p.style.background = color;
+                if (Math.random() < 0.4) p.style.borderRadius = '2px';
                 contenedor.appendChild(p);
                 setTimeout(() => p.remove(), 500);
             }
@@ -542,6 +548,7 @@
             bpm = currentDifficulty.bpmStart;
             PERFECT_WINDOW = currentDifficulty.perfect;
             GOOD_WINDOW = currentDifficulty.good;
+            TRAVEL_MS = currentDifficulty.travelMs;
             beatConta = 0;
             notes.forEach(n => n.el.remove());
             notes = [];
