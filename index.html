@@ -7,13 +7,16 @@
 <body>
     <div id="contenedor">
         <div id="lineadejuego"></div>
-        <div id="zonadisparo"></div>
+        <div id="zonadisparo">
+            <div id="timing-ring"></div>
+        </div>
         <div id="hud">
             <div id="vidas"></div>
             <div id="score">0</div>
         </div>
         <div id="combos"></div>
         <div id="judgement"></div>
+        <div id="levelup"></div>
         <div id="pista_tecla">ESPACIO</div>
 
         <div class="overlays" id="pantalla-inicio">
@@ -40,7 +43,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script>
-        
         const firebaseConfig = {
             apiKey: "AIzaSyC525HPlPXey5lu7luPOHsqOY4m9hOoHes",
             authDomain: "rythm-30112.firebaseapp.com",
@@ -53,7 +55,6 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-
         const contenedor = document.getElementById('contenedor');
         const lane = document.getElementById('lineadejuego');
         const scoreEl = document.getElementById('score');
@@ -64,7 +65,6 @@
         const startPantalla = document.getElementById('pantalla-inicio');
         const perdidaPantalla = document.getElementById('gameover-pantalla');
 
-        
         const LANE_HEIGHT = contenedor.clientHeight;
         const HIT_Y = LANE_HEIGHT - 90;
         let TRAVEL_MS = 1400;
@@ -143,13 +143,12 @@
         let score = 0;
         let combo = 0;
         let lives = 3;
-        let gameState = 'menu'; 
-
+        let gameState = 'menu';
 
         const DIFFICULTIES = [
-            { name: 'FACIL',   bpmStart: 100,  bpmMax: 200, perfect: 60, good: 160, holdChance: 0.2, travelMs: 1500 },
+            { name: 'FACIL',   bpmStart: 100, bpmMax: 200, perfect: 60, good: 160, holdChance: 0.2,  travelMs: 1500 },
             { name: 'NORMAL',  bpmStart: 125, bpmMax: 225, perfect: 45, good: 120, holdChance: 0.35, travelMs: 1200 },
-            { name: 'DIFICIL', bpmStart: 150, bpmMax: 150, perfect: 30, good: 90,  holdChance: 0.4, travelMs: 900}
+            { name: 'DIFICIL', bpmStart: 150, bpmMax: 260, perfect: 30, good: 90,  holdChance: 0.4,  travelMs: 900 }
         ];
         let difficultIndex = 1;
         let currentDifficulty = DIFFICULTIES[difficultIndex];
@@ -187,7 +186,6 @@
             startGame();
         }
 
-        // ---------- NOMBRE (barra de letras) ----------
         let nameBuffer = '';
         let sessionPlayerName = null;
         let letterIndex = 0;
@@ -257,7 +255,6 @@
             document.getElementById('restart-hint').style.display = 'block';
         }
 
-        // ---------- RECORDS (Firebase) ----------
         async function submitScore(name, finalScore) {
             try {
                 const ref = db.ref('onekey_players/' + name);
@@ -311,7 +308,6 @@
             container.innerHTML = `<ol>${items}</ol>`;
         }
 
-        // ---------- ESTADO DEL JUEGO ----------
         let running = false;
         let notes = [];
         let spawnTimer = null;
@@ -334,6 +330,18 @@
             if (lives <= 0) endGame();
         }
 
+        function showLevelUp() {
+            const el = document.getElementById('levelup');
+            el.textContent = '¡MÁS RÁPIDO! ' + Math.round(bpm) + ' BPM';
+            el.style.opacity = '1';
+            el.style.transform = 'translateX(-50%) translateY(-8px)';
+            clearTimeout(showLevelUp._t);
+            showLevelUp._t = setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateX(-50%) translateY(0)';
+            }, 900);
+        }
+
         function spawnNote() {
             beatConta++;
             const isHold = Math.random() < currentDifficulty.holdChance;
@@ -354,7 +362,10 @@
                 state: 'falling'
             });
 
-            if (bpm < currentDifficulty.bpmMax && beatConta % 8 === 0) bpm += 4;
+            if (bpm < currentDifficulty.bpmMax && beatConta % 8 === 0) {
+                bpm += 4;
+                showLevelUp();
+            }
         }
 
         function scheduler() {
@@ -363,8 +374,8 @@
             const jitter = base * 0.25;
             const delay = base + (Math.random() * 2 - 1) * jitter;
             spawnTimer = setTimeout(() => {
-                const hayNotaActiva = notes.some(n => n.state === 'falling' || n.state === 'holding');
-                if (!hayNotaActiva) {
+                const hayHoldActivo = notes.some(n => n.state === 'holding');
+                if (!hayHoldActivo) {
                     spawnNote();
                 }
                 scheduler();
@@ -383,9 +394,14 @@
             }, 220);
         }
 
+        function getMultiplicador() {
+            return Math.min(4, 1 + Math.floor(combo / 10));
+        }
+
         function flashCombo() {
             if (combo > 1) {
-                combosEl.textContent = combo + ' combo';
+                const mult = getMultiplicador();
+                combosEl.textContent = combo + ' combo' + (mult > 1 ? ' x' + mult : '');
                 combosEl.style.opacity = '1';
                 clearTimeout(flashCombo._t);
                 flashCombo._t = setTimeout(() => {
@@ -394,6 +410,17 @@
             } else {
                 combosEl.style.opacity = '0';
             }
+        }
+
+        function updateLane() {
+            const mult = getMultiplicador();
+            let color = '#2a2a3d';
+            if (mult === 2) color = '#4a9eff';
+            else if (mult === 3) color = '#a855f7';
+            else if (mult >= 4) color = '#ffd45d';
+            lane.style.borderLeftColor = color;
+            lane.style.borderRightColor = color;
+            lane.style.boxShadow = mult > 1 ? `inset 0 0 40px ${color}55` : 'none';
         }
 
         function spawnParticulas(color) {
@@ -407,16 +434,17 @@
                 const dur = 0.4 + Math.random() * 0.5;
                 const spin = (Math.random() * 720 - 360) + 'deg';
                 p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
-                p.style.setProperty('--spin', spin)
                 p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+                p.style.setProperty('--spin', spin);
                 p.style.width = size + 'px';
                 p.style.height = size + 'px';
                 p.style.left = (220 + Math.random() * 20) + 'px';
                 p.style.top = (HIT_Y + 22) + 'px';
                 p.style.background = color;
+                p.style.animationDuration = dur + 's';
                 if (Math.random() < 0.4) p.style.borderRadius = '2px';
                 contenedor.appendChild(p);
-                setTimeout(() => p.remove(), 500);
+                setTimeout(() => p.remove(), dur * 1000 + 50);
             }
         }
 
@@ -450,23 +478,27 @@
                     closest.el.remove();
 
                     if (closestDiff <= PERFECT_WINDOW) {
-                        score += 100; combo++;
+                        combo++;
+                        score += 100 * getMultiplicador();
                         showJudgement('PERFECT', '#4a9eff');
                         beep(880, 0.08, 0.15);
                         spawnParticulas('#4a9eff');
                     } else {
-                        score += 50; combo++;
+                        combo++;
+                        score += 50 * getMultiplicador();
                         showJudgement('GOOD', '#ffd45d');
                         beep(660, 0.08, 0.12);
                         spawnParticulas('#ffd45d');
                     }
                     flashCombo();
+                    updateLane();
                     scoreEl.textContent = score;
                 }
             } else {
                 combo = 0;
                 showJudgement('FALLO', '#ff5d8f');
                 flashCombo();
+                updateLane();
                 beep(180, 0.15, 0.15);
                 screenShake();
             }
@@ -485,7 +517,8 @@
             held.el.remove();
 
             if (diff <= GOOD_WINDOW) {
-                score += 150; combo++;
+                combo++;
+                score += 150 * getMultiplicador();
                 showJudgement('PERFECT HOLD', '#4a9eff');
                 beep(990, 0.1, 0.15);
             } else {
@@ -495,6 +528,7 @@
             }
 
             flashCombo();
+            updateLane();
             scoreEl.textContent = score;
         }
 
@@ -518,6 +552,7 @@
                         looseLife();
                         showJudgement('FALLO', '#ff5d8f');
                         flashCombo();
+                        updateLane();
                         screenShake();
                     }
                 } else if (n.state === 'holding') {
@@ -530,12 +565,33 @@
                         n.state = 'done';
                         n.judged = true;
                         n.el.remove();
-                        score += 150; combo++;
+                        combo++;
+                        score += 150 * getMultiplicador();
                         showJudgement('PERFECT HOLD', '#4a9eff');
                         flashCombo();
+                        updateLane();
                         scoreEl.textContent = score;
                     }
                 }
+            }
+
+            const ring = document.getElementById('timing-ring');
+            const proximo = notes.find(n => n.state === 'falling');
+            if (proximo) {
+                const timeToTarget = proximo.targetTime - now;
+                const ventana = GOOD_WINDOW * 3;
+                if (timeToTarget < ventana && timeToTarget > -GOOD_WINDOW) {
+                    const progress = Math.max(0, timeToTarget / ventana);
+                    const scale = 1 + progress * 2.2;
+                    const enPerfecto = Math.abs(timeToTarget) <= PERFECT_WINDOW;
+                    ring.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                    ring.style.opacity = String(0.9 - progress * 0.2);
+                    ring.style.borderColor = enPerfecto ? '#ffd45d' : '#4a9eff';
+                } else {
+                    ring.style.opacity = '0';
+                }
+            } else {
+                ring.style.opacity = '0';
             }
 
             notes = notes.filter(n => !n.judged);
@@ -545,6 +601,7 @@
         function startGame() {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             score = 0; combo = 0; lives = 3;
+            updateLane();
             bpm = currentDifficulty.bpmStart;
             PERFECT_WINDOW = currentDifficulty.perfect;
             GOOD_WINDOW = currentDifficulty.good;
@@ -590,7 +647,6 @@
             }
         }
 
-        // ---------- CONTROL POR ESTADO (todo con ESPACIO) ----------
         function handlePress() {
             if (gameState === 'menu') {
                 confirmDificultad();
@@ -628,7 +684,6 @@
             handleRelease();
         }, { passive: false });
 
-        // ---------- INICIALIZACIÓN ----------
         buildDifficultyStrip();
         startDifficultyCycle();
     </script>
