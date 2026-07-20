@@ -248,3 +248,57 @@ body {
     font-size: 11px;
     color: #6a6a80;
 }
+
+#difficulty-strip {
+    display: flex;
+    width: 100%;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid #2a2a3d;
+    overflow: hidden;
+}
+
+#difficulty-strip .strip-option {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    font-size: 13px;
+    color:#9a9ab0;
+    transition: background 0.1s, color 0.1s;
+}
+
+#difficulty-strip .strip-option.active {
+    background: #4a9eff;
+    color: #0a0a12;
+    font-weight: bold;
+}
+
+#dificultad-display {
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #ffd45d;
+    margin-bottom: 10px;
+}
+
+.particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: particle-burst 0.5s ease-out forwards;
+}
+
+@keyframes particle-burst {
+    to { transform: translate(var(--dx), var(--dy)) scale(0); opacity:0}
+}
+
+@keyframes shake {
+    10%, 90% {transform: translateX(-2px);}
+    20%, 80% {transform: translateX(4px);}
+    30%, 50%, 70% { transform: translateX(-8px); }
+    40%, 60% { transform: translateX(8px);}
+}
+
+#contenedor.shake { animation: shake 0.3s}

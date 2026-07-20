@@ -15,10 +15,12 @@
         <div id="combos"></div>
         <div id="judgement"></div>
         <div id="pista_tecla">ESPACIO</div>
+
         <div class="overlays" id="pantalla-inicio">
             <h1>ONE KEY</h1>
-            <p>Presiona <b>ESPACIO</b> (o toca la pantalla) cuando el bloque cruce la linea azul</p>
-            <button id="inicio">Jugar</button>
+            <p>Todo controlado con <b>ESPACIO</b></p>
+            <div id="difficulty-strip"></div>
+            <p class="hint">ESPACIO para elegir la dificultad y empezar</p>
         </div>
 
         <div class="overlays" id="gameover-pantalla" style="display:none">
@@ -31,12 +33,14 @@
                 <p class="hint">ESPACIO para elegir la letra</p>
             </div>
             <div id="records"></div>
-            <button id="restart">Reintentar</button>
+            <p class="hint" id="restart-hint" style="display: none;">ESPACIO para reintentar</p>
         </div>
     </div>
+
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script>
+        // ---------- FIREBASE ----------
         const firebaseConfig = {
             apiKey: "AIzaSyC525HPlPXey5lu7luPOHsqOY4m9hOoHes",
             authDomain: "rythm-30112.firebaseapp.com",
@@ -48,6 +52,8 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+
+        // ---------- REFERENCIAS DOM ----------
         const contenedor = document.getElementById('contenedor');
         const lane = document.getElementById('lineadejuego');
         const scoreEl = document.getElementById('score');
@@ -58,33 +64,132 @@
         const startPantalla = document.getElementById('pantalla-inicio');
         const perdidaPantalla = document.getElementById('gameover-pantalla');
 
+        // ---------- CONSTANTES DE LAYOUT ----------
         const LANE_HEIGHT = contenedor.clientHeight;
         const HIT_Y = LANE_HEIGHT - 90;
         const TRAVEL_MS = 1400;
-        const PERFECT_WINDOW = 45;
-        const GOOD_WINDOW = 120;
+        let PERFECT_WINDOW = 45;
+        let GOOD_WINDOW = 120;
         const SPEED = (HIT_Y + 22) / TRAVEL_MS;
 
+        // ---------- AUDIO ----------
         let audioCtx = null;
+        let beatClockTimer = null;
+        let beatClockCount = 0;
 
         function beep(freq, dur, volumen) {
-            if(!audioCtx) return;
-            const asbd = audioCtx.createOscillator();
-            const gsh = audioCtx.createGain();
-            asbd.frequency.value = freq;
-            asbd.type = 'sine';
-            gsh.gain.value = volumen;
-            gsh.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
-            asbd.connect(gsh).connect(audioCtx.destination);
-            asbd.start();
-            asbd.stop(audioCtx.currentTime + dur);
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.value = freq;
+            osc.type = 'sine';
+            gain.gain.value = volumen;
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + dur);
         }
 
+        function playKick() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+        }
+
+        function playHihat() {
+            if (!audioCtx) return;
+            const bufferSize = audioCtx.sampleRate * 0.03;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.15;
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.value = 6000;
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.03);
+            noise.connect(filter).connect(gain).connect(audioCtx.destination);
+            noise.start();
+        }
+
+        function scheduleBeatTick() {
+            if (!running) return;
+            const interval = 60000 / bpm;
+            beatClockTimer = setTimeout(() => {
+                if (beatClockCount % 4 === 0) playKick(); else playHihat();
+                beatClockCount++;
+                scheduleBeatTick();
+            }, interval);
+        }
+
+        function startBeatClock() {
+            beatClockCount = 0;
+            scheduleBeatTick();
+        }
+
+        function stopBeatClock() {
+            clearTimeout(beatClockTimer);
+        }
+
+        // ---------- ESTADO GENERAL ----------
         let score = 0;
         let combo = 0;
-        let lives = 3; 
-        let lastScoreWasRecord = false;
-        let enteringName = false;
+        let lives = 3;
+        let gameState = 'menu'; // 'menu' | 'playing' | 'naming' | 'results'
+
+        // ---------- DIFICULTAD ----------
+        const DIFFICULTIES = [
+            { name: 'FACIL',   bpmStart: 80,  bpmMax: 130, perfect: 60, good: 160, holdChance: 0.2 },
+            { name: 'NORMAL',  bpmStart: 105, bpmMax: 170, perfect: 45, good: 120, holdChance: 0.35 },
+            { name: 'DIFICIL', bpmStart: 130, bpmMax: 200, perfect: 30, good: 90,  holdChance: 0.4 }
+        ];
+        let difficultIndex = 1;
+        let currentDifficulty = DIFFICULTIES[difficultIndex];
+        let difficultyCursor = 1;
+        let difficultyTimer = null;
+
+        function buildDifficultyStrip() {
+            const strip = document.getElementById('difficulty-strip');
+            strip.innerHTML = DIFFICULTIES.map((d, i) => `<span class="strip-option" data-i="${i}">${d.name}</span>`).join('');
+        }
+
+        function highlightDifficulty() {
+            document.querySelectorAll('#difficulty-strip .strip-option').forEach(el => el.classList.remove('active'));
+            const el = document.querySelector(`#difficulty-strip .strip-option[data-i="${difficultyCursor}"]`);
+            if (el) el.classList.add('active');
+        }
+
+        function startDifficultyCycle() {
+            difficultyCursor = difficultIndex;
+            highlightDifficulty();
+            difficultyTimer = setInterval(() => {
+                difficultyCursor = (difficultyCursor + 1) % DIFFICULTIES.length;
+                highlightDifficulty();
+            }, 700);
+        }
+
+        function stopDifficultyCycle() {
+            clearInterval(difficultyTimer);
+        }
+
+        function confirmDificultad() {
+            difficultIndex = difficultyCursor;
+            currentDifficulty = DIFFICULTIES[difficultIndex];
+            stopDifficultyCycle();
+            startGame();
+        }
+
+        // ---------- NOMBRE (barra de letras) ----------
         let nameBuffer = '';
         let sessionPlayerName = null;
         let letterIndex = 0;
@@ -97,7 +202,7 @@
             return name.replace(/[.#$\[\]\/]/g, '').trim().slice(0, LETRAS_MAXIMAS);
         }
 
-        function ConstruirCadena() {
+        function construirCadena() {
             const strip = document.getElementById('letter-strip');
             strip.innerHTML = LETTERS.map((l, i) => `<span class="letter" data-i="${i}">${l}</span>`).join('');
         }
@@ -118,7 +223,7 @@
         }
 
         function pararCiclo() {
-            clearInterval(letterTiempo)
+            clearInterval(letterTiempo);
         }
 
         function actualizarNombre() {
@@ -146,14 +251,16 @@
             const clean = sanitaizeName(nameBuffer);
             if (!clean) return;
             pararCiclo();
-            enteringName = false;
             document.getElementById('name-entry').style.display = 'none';
             sessionPlayerName = clean;
             document.getElementById('detalles').textContent = 'Guardando...';
             await submitScore(sessionPlayerName, score);
+            gameState = 'results';
+            document.getElementById('restart-hint').style.display = 'block';
         }
 
-         async function submitScore(name, finalScore) {
+        // ---------- RECORDS (Firebase) ----------
+        async function submitScore(name, finalScore) {
             try {
                 const ref = db.ref('onekey_players/' + name);
                 const snap = await ref.once('value');
@@ -174,7 +281,7 @@
             }
         }
 
-               async function getRecords() {
+        async function getRecords() {
             try {
                 const snapshot = await db.ref('onekey_players')
                     .orderByValue()
@@ -206,15 +313,16 @@
             container.innerHTML = `<ol>${items}</ol>`;
         }
 
+        // ---------- ESTADO DEL JUEGO ----------
         let running = false;
         let notes = [];
         let spawnTimer = null;
         let bpm = 100;
         let beatConta = 0;
-        
+
         function initLives() {
             livesEl.innerHTML = '';
-            for (let i = 0; i<3; i++) {
+            for (let i = 0; i < 3; i++) {
                 const d = document.createElement('div');
                 d.className = 'life';
                 livesEl.appendChild(d);
@@ -230,7 +338,7 @@
 
         function spawnNote() {
             beatConta++;
-            const isHold = Math.random() < 0.3;
+            const isHold = Math.random() < currentDifficulty.holdChance;
             const holdms = isHold ? 400 + Math.random() * 500 : 0;
             const height = 22 + holdms * SPEED;
 
@@ -241,25 +349,26 @@
             lane.appendChild(el);
 
             const targetTime = performance.now() + TRAVEL_MS;
-            notes.push({el, targetTime, isHold, holdms, height,
+            notes.push({
+                el, targetTime, isHold, holdms, height,
                 endTime: targetTime + holdms,
                 judged: false,
-                state: 'falling',
+                state: 'falling'
             });
 
-            if (bpm < 170 && beatConta % 8 === 0) bpm += 4;
+            if (bpm < currentDifficulty.bpmMax && beatConta % 8 === 0) bpm += 4;
         }
-         
+
         function scheduler() {
             if (!running) return;
             const base = 60000 / bpm;
             const jitter = base * 0.35;
-            const delay = base + (Math.random() * 2 -1) * jitter;
+            const delay = base + (Math.random() * 2 - 1) * jitter;
             spawnTimer = setTimeout(() => {
                 const hayNotaActiva = notes.some(n => n.state === 'falling' || n.state === 'holding');
                 if (!hayNotaActiva) {
                     spawnNote();
-                }    
+                }
                 scheduler();
             }, Math.max(250, delay));
         }
@@ -276,17 +385,39 @@
             }, 220);
         }
 
-        function flashCOmbo() {
+        function flashCombo() {
             if (combo > 1) {
-                combosEl.textContent = combo + 'combo';
+                combosEl.textContent = combo + ' combo';
                 combosEl.style.opacity = '1';
-                clearTimeout(flashCOmbo._t);
-                flashCOmbo._t = setTimeout(() => {
+                clearTimeout(flashCombo._t);
+                flashCombo._t = setTimeout(() => {
                     combosEl.style.opacity = '0';
                 }, 300);
             } else {
                 combosEl.style.opacity = '0';
             }
+        }
+
+        function spawnParticulas(color) {
+            for (let i = 0; i < 10; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 20 + Math.random() * 30;
+                p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+                p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+                p.style.left = '210px';
+                p.style.top = (HIT_Y + 22) + 'px';
+                p.style.background = color;
+                contenedor.appendChild(p);
+                setTimeout(() => p.remove(), 500);
+            }
+        }
+
+        function screenShake() {
+            contenedor.classList.remove('shake');
+            void contenedor.offsetWidth;
+            contenedor.classList.add('shake');
         }
 
         function trypress() {
@@ -305,7 +436,7 @@
                     closest.state = 'holding';
                     closest.el.classList.add('active');
                     const perfect = closestDiff <= PERFECT_WINDOW;
-                    showJudgement(perfect ? 'PERFECT':'GOOD', perfect ? '#4a9eff' : '#ffd45d');
+                    showJudgement(perfect ? 'PERFECT' : 'GOOD', perfect ? '#4a9eff' : '#ffd45d');
                     beep(perfect ? 880 : 660, 0.08, 0.12);
                 } else {
                     closest.judged = true;
@@ -316,19 +447,22 @@
                         score += 100; combo++;
                         showJudgement('PERFECT', '#4a9eff');
                         beep(880, 0.08, 0.15);
+                        spawnParticulas('#4a9eff');
                     } else {
                         score += 50; combo++;
-                        showJudgement("GOOD", "#ff45d");
+                        showJudgement('GOOD', '#ffd45d');
                         beep(660, 0.08, 0.12);
+                        spawnParticulas('#ffd45d');
                     }
-                    flashCOmbo();
+                    flashCombo();
                     scoreEl.textContent = score;
                 }
             } else {
                 combo = 0;
-                showJudgement('FALLO', "#ff5d8f");
-                flashCOmbo();
+                showJudgement('FALLO', '#ff5d8f');
+                flashCombo();
                 beep(180, 0.15, 0.15);
+                screenShake();
             }
         }
 
@@ -336,7 +470,7 @@
             keyHint.classList.remove('pressed');
             if (!running) return;
 
-            const held = notes.find(n => n.state === "holding");
+            const held = notes.find(n => n.state === 'holding');
             if (!held) return;
 
             const diff = Math.abs(performance.now() - held.endTime);
@@ -346,7 +480,7 @@
 
             if (diff <= GOOD_WINDOW) {
                 score += 150; combo++;
-                showJudgement('PERFECT HOLD', "#4a9eff");
+                showJudgement('PERFECT HOLD', '#4a9eff');
                 beep(990, 0.1, 0.15);
             } else {
                 combo = 0;
@@ -354,7 +488,7 @@
                 beep(180, 0.15, 0.15);
             }
 
-            flashCOmbo();
+            flashCombo();
             scoreEl.textContent = score;
         }
 
@@ -363,114 +497,133 @@
             const now = performance.now();
             for (const n of notes) {
                 if (n.state === 'done') continue;
-                    if (n.state === 'falling') {    
-                        const timeLeft = n.targetTime -now;
-                        const progress = 1 - (timeLeft / TRAVEL_MS);
-                        const y = progress * (HIT_Y + 22) - n.height;
-                        n.el.style.top = y + 'px';
 
-                        if (timeLeft < -GOOD_WINDOW) {
-                            n.state = 'done';
-                            n.judged = true;
-                            n.el.remove();
-                            combo = 0;
-                            looseLife();
-                            showJudgement('FALLO', '#ff5d8f');
-                            flashCOmbo();
-                        }
-                    } else if (n.state === 'holding') {
-                        const holdProgress = Math.min(1, (now - n.targetTime) / n.holdms);
-                        const currentHeight = Math.max(6, n.height * (1 - holdProgress));
-                        n.el.style.height = currentHeight + 'px';
-                        n.el.style.top = (HIT_Y + 22 - currentHeight) + 'px';
+                if (n.state === 'falling') {
+                    const timeLeft = n.targetTime - now;
+                    const progress = 1 - (timeLeft / TRAVEL_MS);
+                    const y = progress * (HIT_Y + 22) - n.height;
+                    n.el.style.top = y + 'px';
 
-                        if (now > n.endTime + GOOD_WINDOW) {
-                            n.state = 'done';
-                            n.judged = true;
-                            n.el.remove();
-                            score += 150; combo++;
-                            showJudgement('PERFECT HOLD', "#4a9eff");
-                            flashCOmbo();
-                            scoreEl.textContent = score;
-                        }
+                    if (timeLeft < -GOOD_WINDOW) {
+                        n.state = 'done';
+                        n.judged = true;
+                        n.el.remove();
+                        combo = 0;
+                        looseLife();
+                        showJudgement('FALLO', '#ff5d8f');
+                        flashCombo();
+                        screenShake();
+                    }
+                } else if (n.state === 'holding') {
+                    const holdProgress = Math.min(1, (now - n.targetTime) / n.holdms);
+                    const currentHeight = Math.max(6, n.height * (1 - holdProgress));
+                    n.el.style.height = currentHeight + 'px';
+                    n.el.style.top = (HIT_Y + 22 - currentHeight) + 'px';
+
+                    if (now > n.endTime + GOOD_WINDOW) {
+                        n.state = 'done';
+                        n.judged = true;
+                        n.el.remove();
+                        score += 150; combo++;
+                        showJudgement('PERFECT HOLD', '#4a9eff');
+                        flashCombo();
+                        scoreEl.textContent = score;
                     }
                 }
+            }
 
-             notes = notes.filter(n => !n.judged);
-             requestAnimationFrame(Loop);
+            notes = notes.filter(n => !n.judged);
+            requestAnimationFrame(Loop);
         }
 
         function startGame() {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            score = 0; combo = 0; lives = 3; bpm = 100; beatConta = 0;
+            score = 0; combo = 0; lives = 3;
+            bpm = currentDifficulty.bpmStart;
+            PERFECT_WINDOW = currentDifficulty.perfect;
+            GOOD_WINDOW = currentDifficulty.good;
+            beatConta = 0;
             notes.forEach(n => n.el.remove());
             notes = [];
             scoreEl.textContent = '0';
             initLives();
             startPantalla.style.display = 'none';
             perdidaPantalla.style.display = 'none';
-            enteringName = false;
             pararCiclo();
             document.getElementById('name-entry').style.display = 'none';
+            gameState = 'playing';
             running = true;
             clearTimeout(spawnTimer);
+            startBeatClock();
             scheduler();
             requestAnimationFrame(Loop);
         }
 
-        async function  endGame() {
+        async function endGame() {
             running = false;
             clearTimeout(spawnTimer);
+            stopBeatClock();
             document.getElementById('final-score').textContent = score;
+            document.getElementById('restart-hint').style.display = 'none';
             perdidaPantalla.style.display = 'flex';
 
             if (sessionPlayerName) {
                 document.getElementById('detalles').textContent = 'Guardando...';
-                await submitScore(sessionPlayerName, score)
+                await submitScore(sessionPlayerName, score);
+                gameState = 'results';
+                document.getElementById('restart-hint').style.display = 'block';
             } else {
-                document.getElementById('detalles').textContent = 'Guardando...';
-                enteringName = true;
+                document.getElementById('detalles').textContent = 'Introduce tu nombre';
+                gameState = 'naming';
                 nameBuffer = '';
                 actualizarNombre();
                 document.getElementById('name-entry').style.display = 'block';
-                ConstruirCadena();
+                construirCadena();
                 startLetterCycle();
             }
         }
 
-        document.getElementById('inicio').addEventListener('click', startGame);
-        document.getElementById('restart').addEventListener('click', startGame);
+        // ---------- CONTROL POR ESTADO (todo con ESPACIO) ----------
+        function handlePress() {
+            if (gameState === 'menu') {
+                confirmDificultad();
+            } else if (gameState === 'naming') {
+                elegirLetra();
+            } else if (gameState === 'results') {
+                startGame();
+            } else if (gameState === 'playing') {
+                trypress();
+            }
+        }
+
+        function handleRelease() {
+            if (gameState === 'playing') attemtRelease();
+        }
 
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space' && !e.repeat) {
                 e.preventDefault();
-                if (enteringName) {
-                    elegirLetra();
-                } else {
-                    trypress();
-                }
+                handlePress();
             }
         });
         window.addEventListener('keyup', (e) => {
             if (e.code === 'Space') {
                 e.preventDefault();
-                if (!enteringName) attemtRelease();
+                handleRelease();
             }
         });
         contenedor.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (enteringName) { elegirLetra(); } else { trypress(); }
+            handlePress();
         }, { passive: false });
         contenedor.addEventListener('touchend', (e) => {
             e.preventDefault();
-            if (!enteringName) attemtRelease();
+            handleRelease();
         }, { passive: false });
-        contenedor.addEventListener('mousedown', () => {
-            if (enteringName) { elegirLetra(); } else { trypress(); }
-        });
-        contenedor.addEventListener('mouseup', () => {
-            if (!enteringName) attemtRelease();
-        });
+
+        // ---------- INICIALIZACIÓN ----------
+        buildDifficultyStrip();
+        startDifficultyCycle();
     </script>
 </body>
 </html>
