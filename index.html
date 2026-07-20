@@ -19,6 +19,7 @@
         <div id="combos"></div>
         <div id="judgement"></div>
         <div id="levelup"></div>
+        <div id="countdown"></div>
         <div id="pista_tecla">ESPACIO</div>
 
         <div class="overlays" id="pantalla-inicio">
@@ -338,6 +339,12 @@
             lives--;
             const dots = livesEl.children;
             if (dots[lives]) dots[lives].classList.add('lost');
+            contenedor.classList.remove('shake', 'life-shake');
+            void contenedor.offsetWidth;
+            contenedor.classList.add('life-shake');
+            contenedor.addEventListener('animationend', () => {
+                contenedor.classList.remove('life-shake');
+            }, {once:true});
             if (lives <= 0) endGame();
         }
 
@@ -414,13 +421,13 @@
 
         function flashCombo() {
             if (combo > 1) {
-                const mult = getMultiplicador();
-                combosEl.textContent = combo + ' combo' + (mult > 1 ? ' x' + mult : '');
-                combosEl.style.opacity = '1';
+                combosEl.textContent = combo + ' combo' + (mult > 1 ? ' ×' + mult : '');
+                combosEl.style.animation = 'none';
+                void combosEl.offsetWidth;
+                combosEl.style.opacity   = '1';
+                combosEl.style.animation = 'comboBounce 0.35s ease-out forwards';
                 clearTimeout(flashCombo._t);
-                flashCombo._t = setTimeout(() => {
-                    combosEl.style.opacity = '0';
-                }, 300);
+                flashCombo._t = setTimeout(() => { combosEl.style.opacity = '0'; }, 700);
             } else {
                 combosEl.style.opacity = '0';
             }
@@ -706,6 +713,34 @@
 
         buildDifficultyStrip();
         startDifficultyCycle();
+
+        function playCountdown(n) {
+            if (!audioCtx) return;
+            const freq = n === 1 ? 1046 : 523;
+            const dur = n === 1 ? 0.35 : 0.18;
+            beep(freq, dur, n === 1 ? 0.22 : 0.15);
+        }
+
+        function startCountdowna() {
+            const el = document.getElementById('countdown');
+            let n = 3;
+            function tick() {
+                el.textContent = n;
+                el.style.transition = 'none';
+                el.style.opacity    = '1';
+                el.style.transform  = 'scale(1.4)';
+                void el.offsetWidth;
+                el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                el.style.opacity    = '0';
+                el.style.transform  = 'scale(0.7)';
+                playCountdownBeep(n);
+                n--;
+                if (n > 0) setTimeout(tick, 750);
+                else setTimeout(startGame, 750);
+            }
+            tick();
+        }
     </script>
 </body>
 </html>
+
